@@ -13,6 +13,7 @@ int main(void)
     obj.set_pins(16, 17);
     obj2.set_pins(20, 21);
 
+    printf("defaultPin %d, defaultOtherPin %d, myFloatConstant %g\n", test::defaultPin, test::defaultOtherPin, test::myFloatConstant);
     printf("obj: pin %d, other pin %d\n", obj.get_pin(), obj.get_other_pin());
     printf("obj2: pin %d, other pin %d\n", obj2.get_pin(), obj2.get_other_pin());
 

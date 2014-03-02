@@ -2,16 +2,16 @@ spinwrap:	spinwrap.c
 	cc -Wall -o spinwrap spinwrap.c
 
 test.cpp:	test.spin spinwrap
-	./spinwrap -d $<
+	./spinwrap $<
 
 test.c:	test.spin spinwrap
 	./spinwrap -c $<
 
 test.elf:	test_main.cpp test.cpp test.h
-	propeller-elf-gcc -Os -Wall -o $@ test_main.cpp test.cpp -fno-exceptions -fno-rtti
+	propeller-elf-gcc -Os -Wall -o $@ test_main.cpp test.cpp -fno-exceptions -fno-rtti -lm
 
 testc.elf:	test_main.c test.c test.h
-	propeller-elf-gcc -Os -Wall -o $@ test_main.c test.c
+	propeller-elf-gcc -Os -Wall -o $@ test_main.c test.c -lm
 
 testcatalina.binary:	test_main.c test.c test.h
 	catalina -C TTY -o $@ test_main.c test.c -lc

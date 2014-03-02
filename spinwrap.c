@@ -156,6 +156,7 @@ static void *safe_calloc(size_t size);
 static void rootname(char *path, char *name);
 static int getLine(ParseContext *c);
 static int token(ParseContext *c);
+static int SkipSpaces(ParseContext *c);
 static uint8_t *ReadEntireFile(char *name, long *pSize);
 static void DumpSpinBinary(uint8_t *binary);
 
@@ -298,12 +299,35 @@ static void CompleteOutputPaths(char *name)
 
 #ifdef PARSE_SPIN_SYMBOL_FILE
 
+/*
+
+OpenSpin -s symbol output format:
+
+CON, _clkmode, 1032
+CON, _xinfreq, 5000000
+CONF, testFloat, 6.280000
+PARAM, Start, PinA, 0, 0
+PARAM, Start, PinB, 0, 1
+PUB, Start, 0, 2
+PUB, End, 1, 0
+
+The params for a pub appear just before the pub.
+
+CON line is: CON name, integer value
+CONF line is: CON name, float value
+PARAM line is this: PUB name, Param Name, PUB Index, Param Index
+PUB line is this: PUB name, PUB index, Param count
+
+*/
+
 static Object *ProcessSpinSymbolFile(char *path, char *name)
 {
     ParseContext *c = safe_calloc(sizeof(ParseContext));
     Object *object = (Object *)safe_calloc(sizeof(Object) + strlen(name));
     char cmd[1024];
     int sts;
+    
+    c->flags |= F_INIT;
     
     strcpy(object->name, name);
     object->pNextConstant = &object->constants;
@@ -356,6 +380,27 @@ static Object *ProcessSpinSymbolFile(char *path, char *name)
 					printf("CON: name '%s', value %u\n", name, constant->v.integerValue);
         	}
         	else if (strcasecmp(c->token, "CONF") == 0) {
+				Constant *constant;
+				
+				if ((tkn = token(c)) != ',') {
+					fprintf(stderr, "warning: syntax error on line %d\n", c->lineNumber);
+					continue;
+				}
+				if ((tkn = token(c)) != T_IDENTIFIER) {
+					fprintf(stderr, "warning: syntax error on line %d\n", c->lineNumber);
+					continue;
+				}
+				strcpy(name, c->token);
+				if ((tkn = token(c)) != ',') {
+					fprintf(stderr, "warning: syntax error on line %d\n", c->lineNumber);
+					continue;
+				}
+
+				constant = AddConstant(object, name, TYPE_FLOAT);
+				constant->v.floatValue = strtod((char *)c->linePtr, NULL);
+				
+				if (debug)
+					printf("CONF: name '%s', value %g\n", name, constant->v.floatValue);
         	}
         	else if (strcasecmp(c->token, "PARAM") == 0) {
         		char methodName[TOKEN_MAX];
@@ -570,10 +615,10 @@ static void WriteCHeader(char *file, Object *object, uint8_t *binary)
         	while (constant != NULL) {
 				switch (constant->type) {
 				case TYPE_INTEGER:
-					fprintf(fp, "#define %s_%s = %u\n", object->name, constant->name, constant->v.integerValue);
+					fprintf(fp, "#define %s_%s %u\n", object->name, constant->name, constant->v.integerValue);
 					break;
 				case TYPE_FLOAT:
-					fprintf(fp, "#define %s_%s = %g\n", object->name, constant->name, constant->v.floatValue);
+					fprintf(fp, "#define %s_%s %g\n", object->name, constant->name, constant->v.floatValue);
 					break;
 				default:
 					fprintf(fp, "error: unknown constant type %d\n", constant->type);
@@ -1042,12 +1087,8 @@ static int token(ParseContext *c)
 {
     int tkn;
     
-    /* skip leading spaces */
-    while (*c->linePtr != '\0' && isspace(*c->linePtr))
-        ++c->linePtr;
-        
     /* check for the end of line */
-    if (*c->linePtr == '\0')
+    if (SkipSpaces(c) == '\0')
         tkn = T_EOL;
         
     /* check for an identifier */
@@ -1087,6 +1128,15 @@ static int token(ParseContext *c)
     return tkn;
 }
     
+/* SkipSpaces - skip leading spaces */
+static int SkipSpaces(ParseContext *c)
+{
+    /* skip leading spaces */
+    while (*c->linePtr != '\0' && isspace(*c->linePtr))
+        ++c->linePtr;
+    return *c->linePtr;
+}
+
 /* ReadEntireFile - read an entire file into an allocated buffer */
 static uint8_t *ReadEntireFile(char *name, long *pSize)
 {

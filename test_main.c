@@ -16,6 +16,7 @@ int main(void)
     init_test(&obj2);
     test_set_pins(&obj2, 20, 21);
 
+    printf("defaultPin %d, defaultOtherPin %d, myFloatConstant %g\n", test_defaultPin, test_defaultOtherPin, test_myFloatConstant);
     printf("obj: pin %d, other pin %d\n", test_get_pin(&obj), test_get_other_pin(&obj));
     printf("obj2: pin %d, other pin %d\n", test_get_pin(&obj2), test_get_other_pin(&obj2));
 

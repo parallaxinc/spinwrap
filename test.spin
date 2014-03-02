@@ -5,6 +5,7 @@ VAR
 CON
 	defaultPin = 16
 	defaultOtherPin = 17
+	myFloatConstant = 1.234
 	
 OBJ
     blinker : "blinker"
