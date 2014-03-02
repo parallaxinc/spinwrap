@@ -12,8 +12,7 @@
 #include <string.h>
 #include <ctype.h>
 
-// define PARSE_SPIN_SYMBOL_FILE to use the OpenSpin -s symbol files
-#define PARSE_SPIN_SYMBOL_FILE
+// define OLD_SPIN_FILE_PARSER to use the simple Spin file parser
 
 #ifdef CATALINA
 #define SPINCOMPILER        "spinnaker"
@@ -144,7 +143,9 @@ static int debug = 0;
 static void Usage(void);
 static void CompleteOutputPaths(char *name);
 static Object *ProcessSpinSymbolFile(char *path, char *name);
+#ifndef OLD_SPIN_FILE_PARSER
 static Constant *AddConstant(Object *object, char *name, int type);
+#endif
 static Method *AddMethod(Object *object, char *name);
 static MethodArg *AddArgument(Method *method, char *name);
 static void WriteCHeader(char *name, Object *objects, uint8_t *binary);
@@ -297,7 +298,51 @@ static void CompleteOutputPaths(char *name)
     sprintf(binary_path, "%s%s.binary", rootPath, name);
 }
 
-#ifdef PARSE_SPIN_SYMBOL_FILE
+#ifdef OLD_SPIN_FILE_PARSER
+
+static Object *ProcessSpinSymbolFile(char *path, char *name)
+{
+    ParseContext *c = safe_calloc(sizeof(ParseContext));
+    Object *object = (Object *)safe_calloc(sizeof(Object) + strlen(name));
+
+    strcpy(object->name, name);
+    object->pNextConstant = &object->constants;
+    object->pNextMethod = &object->methods;
+    
+    if (!(c->fp = fopen(path, "rb"))) {
+        fprintf(stderr, "error: can't open %s\n", name);
+        exit(1);
+    }
+    c->lineNumber = 0;
+    
+    while (getLine(c)) {
+        int tkn;
+        if ((tkn = token(c)) == T_IDENTIFIER && strcasecmp(c->token, "PUB") == 0) {
+            if ((tkn = token(c)) == T_IDENTIFIER) {
+                Method *method = AddMethod(object, c->token);
+                if ((tkn = token(c)) == '(') {
+                    do {
+                        if ((tkn = token(c)) != T_IDENTIFIER) {
+                            fprintf(stderr, "error: method syntax error -- expecting an identifier on line %d\n", c->lineNumber);
+                            exit(1);
+                        }
+                        AddArgument(method, c->token);
+                    } while ((tkn = token(c)) == ',');
+                    if (tkn != ')') {
+                        fprintf(stderr, "error: method syntax error -- expecting a close paren on line %d\n", c->lineNumber);
+                        exit(1);
+                    }
+                }
+            }
+        }
+    }
+    
+    fclose(c->fp);
+    free(c);
+    return object;
+}
+
+#else
 
 /*
 
@@ -510,52 +555,6 @@ static Object *ProcessSpinSymbolFile(char *path, char *name)
     return object;
 }
 
-#else
-
-static Object *ProcessSpinSymbolFile(char *path, char *name)
-{
-    ParseContext *c = safe_calloc(sizeof(ParseContext));
-    Object *object = (Object *)safe_calloc(sizeof(Object) + strlen(name));
-
-    strcpy(object->name, name);
-    object->pNextConstant = &object->constants;
-    object->pNextMethod = &object->methods;
-    
-    if (!(c->fp = fopen(path, "rb"))) {
-        fprintf(stderr, "error: can't open %s\n", name);
-        exit(1);
-    }
-    c->lineNumber = 0;
-    
-    while (getLine(c)) {
-        int tkn;
-        if ((tkn = token(c)) == T_IDENTIFIER && strcasecmp(c->token, "PUB") == 0) {
-            if ((tkn = token(c)) == T_IDENTIFIER) {
-                Method *method = AddMethod(object, c->token);
-                if ((tkn = token(c)) == '(') {
-                    do {
-                        if ((tkn = token(c)) != T_IDENTIFIER) {
-                            fprintf(stderr, "error: method syntax error -- expecting an identifier on line %d\n", c->lineNumber);
-                            exit(1);
-                        }
-                        AddArgument(method, c->token);
-                    } while ((tkn = token(c)) == ',');
-                    if (tkn != ')') {
-                        fprintf(stderr, "error: method syntax error -- expecting a close paren on line %d\n", c->lineNumber);
-                        exit(1);
-                    }
-                }
-            }
-        }
-    }
-    
-    fclose(c->fp);
-    free(c);
-    return object;
-}
-
-#endif
-
 static Constant *AddConstant(Object *object, char *name, int type)
 {
 	Constant *constant;
@@ -566,6 +565,8 @@ static Constant *AddConstant(Object *object, char *name, int type)
 	object->pNextConstant = &constant->next;
 	return constant;
 }
+
+#endif
 
 static Method *AddMethod(Object *object, char *name)
 {
