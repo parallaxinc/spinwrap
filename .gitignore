@@ -1,0 +1,9 @@
+spinwrap
+*.o
+*.elf
+*.binary
+*.sym
+*_proxy.spin
+test.h
+test.cpp
+test.c
